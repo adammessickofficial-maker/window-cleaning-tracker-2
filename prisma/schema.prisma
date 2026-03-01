@@ -1,0 +1,160 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Customer {
+  id         String     @id @default(cuid())
+  name       String
+  email      String?
+  phone      String?
+  tags       Json
+  properties Property[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model Property {
+  id          String   @id @default(cuid())
+  customerId  String
+  label       String?
+  address1    String
+  address2    String?
+  city        String
+  state       String
+  zip         String
+  accessNotes String?
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  jobs        Job[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Job {
+  id            String    @id @default(cuid())
+  propertyId    String
+  scheduledAt   DateTime
+  completedAt   DateTime?
+  status        JobStatus @default(Scheduled)
+  notes         String?
+  internalNotes String?
+  assignedTo    String?
+  startedAt     DateTime?
+  endedAt       DateTime?
+  laborMinutes  Int?
+  property      Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  lineItems     LineItem[]
+  invoice       Invoice?
+  payments      Payment[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model LineItem {
+  id        String   @id @default(cuid())
+  jobId      String
+  name       String
+  quantity   Decimal  @db.Decimal(10, 2)
+  unitPrice  Decimal  @db.Decimal(10, 2)
+  taxable    Boolean  @default(true)
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  jobId          String        @unique
+  invoiceNumber  String        @unique
+  issuedAt       DateTime
+  dueAt          DateTime?
+  status         InvoiceStatus @default(Draft)
+  subtotal       Decimal       @db.Decimal(10, 2)
+  tax            Decimal       @db.Decimal(10, 2)
+  total          Decimal       @db.Decimal(10, 2)
+  job            Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  payments       Payment[]
+  adjustments    Adjustment[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Payment {
+  id         String        @id @default(cuid())
+  invoiceId  String?
+  jobId      String?
+  receivedAt DateTime
+  amount     Decimal       @db.Decimal(10, 2)
+  method     PaymentMethod
+  tipAmount  Decimal       @default(0) @db.Decimal(10, 2)
+  memo       String?
+  invoice    Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  job        Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+}
+
+model Adjustment {
+  id        String         @id @default(cuid())
+  invoiceId String
+  type      AdjustmentType
+  amount    Decimal        @db.Decimal(10, 2)
+  memo      String?
+  invoice   Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model Setting {
+  id                    String   @id @default("singleton")
+  businessName          String   @default("ClearPane")
+  defaultTaxRate        Decimal  @default(0.08) @db.Decimal(5, 4)
+  invoiceFooterText     String   @default("Thank you for your business.")
+  defaultLineItemTemplates String @default("Exterior Windows,Interior Windows,Tracks & Sills")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+enum JobStatus {
+  Scheduled
+  Completed
+  Invoiced
+  Paid
+  Overdue
+}
+
+enum InvoiceStatus {
+  Draft
+  Sent
+  Overdue
+  Paid
+}
+
+enum PaymentMethod {
+  Cash
+  Check
+  Card
+  ACH
+  Zelle
+  Venmo
+  Other
+}
+
+enum AdjustmentType {
+  Discount
+  Refund
+  WriteOff
+}
